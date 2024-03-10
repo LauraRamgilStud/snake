@@ -1,173 +1,176 @@
-"use-strict";
-/* ############## CIRCULAR BUFFER ################ */
-class CircularBuffer {
-  constructor(capacity) {
-    this.array = new Array(capacity);
-    this.readIndex = 0;
-    this.writeIndex = 0;
-    this.size = 0;
-    this.capacity = capacity;
-  }
+"use strict";
 
-  add(element) {
-    if (this.isFull()) {
-      throw new Error("Buffer is full");
-    }
-    this.array[this.writeIndex] = element;
-    this.writeIndex = (this.writeIndex + 1) % this.capacity;
-    this.size++;
-  }
-
-  remove() {
-    if (this.isEmpty()) {
-      throw new Error("Buffer is empty");
-    }
-    const element = this.array[this.readIndex];
-    this.array[this.readIndex] = undefined; // Clear the slot
-    this.readIndex = (this.readIndex + 1) % this.capacity;
-    this.size--;
-    return element;
-  }
-
-  isEmpty() {
-    return this.size === 0;
-  }
-
-  isFull() {
-    return this.size === this.capacity;
-  }
-}
-
-/*GLOBAL VARIABLES*/
-const GRID_WIDTH = 30;
-const GRID_HEIGHT = 20;
-const TICK_RATE = 200; // milliseconds
-
-let model = createModel();
-let snake = [{ row: 5, col: 5 }];
-let direction;
-let gameInterval;
+let snake = [
+  { row: 5, col: 5 },
+  { row: 5, col: 4 },
+  { row: 5, col: 3 },
+];
 
 let food = generateFood();
+let model = createInitialModel();
+let gameRunning = true;
+let gamePaused = false;
+let lastDirection = null;
+let score = 0;
 
-window.addEventListener("load", load);
-
-/* ############## CONTROLLER ################ */
-
-function load() {
-  document.addEventListener("keydown", handleKeyDown);
-  gameInterval = setInterval(tick, TICK_RATE);
-}
-
-function handleKeyDown(evt) {
-  const key = evt.key;
-  if (key === "ArrowUp" && direction !== "down") {
-    direction = "up";
-  } else if (key === "ArrowDown" && direction !== "up") {
-    direction = "down";
-  } else if (key === "ArrowLeft" && direction !== "right") {
-    direction = "left";
-  } else if (key === "ArrowRight" && direction !== "left") {
-    direction = "right";
-  }
-}
-
-/* ############## VIEW ################ */
-function draw() {
-  const grid = document.getElementById("grid");
-  grid.innerHTML = "";
-
-  for (let row = 0; row < GRID_HEIGHT; row++) {
-    for (let col = 0; col < GRID_WIDTH; col++) {
-      const cell = document.createElement("div");
-      cell.classList.add("cell");
-      grid.appendChild(cell);
-    }
-  }
-
-  snake.forEach((segment) => {
-    const snakeCell = document.createElement("div");
-    snakeCell.classList.add("snake");
-    const cell = grid.children[segment.row * GRID_WIDTH + segment.col];
-    cell.appendChild(snakeCell);
-  });
-
-  const foodCell = document.createElement("div");
-  foodCell.classList.add("food");
-  const cell = grid.children[food.row * GRID_WIDTH + food.col];
-  cell.appendChild(foodCell);
-}
-
-/* ############## MODEL ################ */
-function createModel() {
-  return new CircularBuffer(GRID_WIDTH * GRID_HEIGHT);
-}
-
-function tick() {
-  moveSnake();
-  checkCollision();
-  draw();
-}
-
-function moveSnake() {
-  let newHead = { ...snake[0] };
-  if (direction === "up") {
-    newHead.row--;
-  } else if (direction === "down") {
-    newHead.row++;
-  } else if (direction === "left") {
-    newHead.col--;
-  } else if (direction === "right") {
-    newHead.col++;
-  }
-
-  snake.unshift(newHead);
-  if (newHead.row === food.row && newHead.col === food.col) {
-    model.add(food);
-    food = generateFood();
-  } else {
-    model.remove();
-  }
-}
-
-function checkCollision() {
-  const head = snake[0];
-  if (
-    head.row < 0 ||
-    head.row >= GRID_HEIGHT ||
-    head.col < 0 ||
-    head.col >= GRID_WIDTH
-  ) {
-    gameOver();
-  }
-
-  for (let i = 1; i < snake.length; i++) {
-    if (head.row === snake[i].row && head.col === snake[i].col) {
-      gameOver();
-    }
-  }
-}
-
-function gameOver() {
-  clearInterval(gameInterval);
-  alert("Game Over!");
+function createInitialModel() {
+  let m = Array(10)
+    .fill(null)
+    .map(() => Array(10).fill(0));
+  snake.forEach((segment) => (m[segment.row][segment.col] = 1));
+  m[food.row][food.col] = 2;
+  return m;
 }
 
 function generateFood() {
-  let foodPosition;
+  let row, col;
   do {
-    foodPosition = {
-      row: Math.floor(Math.random() * GRID_HEIGHT),
-      col: Math.floor(Math.random() * GRID_WIDTH),
-    };
-  } while (isFoodOnSnake(foodPosition));
-
-  return foodPosition;
+    row = Math.floor(Math.random() * 10);
+    col = Math.floor(Math.random() * 10);
+  } while (isCellOccupied(row, col));
+  return { row, col };
 }
 
-function isFoodOnSnake(foodPosition) {
-  return snake.some(
-    (segment) =>
-      segment.row === foodPosition.row && segment.col === foodPosition.col
+function isCellOccupied(row, col) {
+  return snake.some((segment) => segment.row === row && segment.col === col);
+}
+
+function start() {
+  console.log("Javascript kører");
+  initializeGrid();
+  document.addEventListener("keydown", updateDirection);
+  displayBoard();
+  tick();
+}
+
+function initializeGrid() {
+  const stage = document.querySelector(".stage");
+  for (let i = 0; i < 100; i++) {
+    let tile = document.createElement("div");
+    tile.className = "tile";
+    stage.appendChild(tile);
+  }
+}
+
+function tick() {
+  if (!gameRunning || gamePaused) return;
+
+  setTimeout(tick, 250);
+  if (lastDirection) {
+    moveSnake();
+    if (checkSelfCollision()) {
+      gameRunning = false;
+      alert("Game Over! Your score: " + score);
+      return;
+    }
+    checkFoodCollision();
+    updateModel();
+    displayBoard();
+  }
+}
+
+function checkSelfCollision() {
+  const [head, ...body] = snake;
+  return body.some(
+    (segment) => segment.row === head.row && segment.col === head.col
   );
 }
+
+function moveSnake() {
+  let newHead = getNewHead();
+
+  snake.unshift(newHead);
+  if (newHead.row === food.row && newHead.col === food.col) {
+    updateScore(10);
+    food = generateFood();
+  } else {
+    snake.pop();
+  }
+}
+
+function checkFoodCollision() {
+  if (snake[0].row === food.row && snake[0].col === food.col) {
+    updateScore(10);
+    let tail = snake[snake.length - 1];
+    snake.push({ row: tail.row, col: tail.col });
+    food = generateFood();
+  }
+}
+
+function getNewHead() {
+  let newHead = { ...snake[0] };
+  switch (lastDirection) {
+    case "ArrowLeft":
+      newHead.col = (newHead.col - 1 + 10) % 10;
+      break;
+    case "ArrowRight":
+      newHead.col = (newHead.col + 1) % 10;
+      break;
+    case "ArrowUp":
+      newHead.row = (newHead.row - 1 + 10) % 10;
+      break;
+    case "ArrowDown":
+      newHead.row = (newHead.row + 1) % 10;
+      break;
+  }
+  return newHead;
+}
+
+function updateModel() {
+  model.forEach((row) => row.fill(0));
+  snake.forEach((segment) => (model[segment.row][segment.col] = 1));
+  model[food.row][food.col] = 2;
+}
+
+function displayBoard() {
+  const tiles = document.querySelectorAll(".stage .tile");
+  tiles.forEach((tile) => (tile.className = "tile"));
+
+  snake.forEach((segment, index) => {
+    const position = segment.row * 10 + segment.col;
+    if (index === 0) {
+      tiles[position].classList.add("head");
+    } else {
+      tiles[position].classList.add("body");
+    }
+  });
+
+  const foodPosition = food.row * 10 + food.col;
+  tiles[foodPosition].classList.add("food");
+}
+
+function updateScore(value) {
+  score += value;
+  document.getElementById("score").textContent = score;
+}
+
+function togglePause() {
+  gamePaused = !gamePaused;
+  if (!gamePaused) tick();
+}
+
+function updateDirection(event) {
+  if (event.key === " ") {
+    togglePause();
+    return;
+  }
+
+  const validKeys = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"];
+  if (
+    validKeys.includes(event.key) &&
+    !isOppositeDirection(event.key, lastDirection)
+  ) {
+    lastDirection = event.key;
+  }
+}
+
+function isOppositeDirection(newDirection, lastDirection) {
+  return (
+    (newDirection === "ArrowLeft" && lastDirection === "ArrowRight") ||
+    (newDirection === "ArrowRight" && lastDirection === "ArrowLeft") ||
+    (newDirection === "ArrowUp" && lastDirection === "ArrowDown") ||
+    (newDirection === "ArrowDown" && lastDirection === "ArrowUp")
+  );
+}
+
+window.addEventListener("load", start);

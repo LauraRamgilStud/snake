@@ -1,30 +1,59 @@
-/* Style for the grid */
-#grid {
-  display: grid;
-  grid-template-columns: repeat(30, 20px); /* Adjust according to GRID_WIDTH */
-  grid-template-rows: repeat(20, 20px); /* Adjust according to GRID_HEIGHT */
-  width: 600px; /* Adjust according to GRID_WIDTH */
-  height: 400px; /* Adjust according to GRID_HEIGHT */
-  border: 1px solid #ccc;
-  margin: 20px auto;
-}
-
-/* Style for individual cells */
-.cell {
-  border: 1px solid #ddd;
+/* General */
+* {
   box-sizing: border-box;
 }
 
-/* Style for snake */
-.snake {
-  background-color: green;
-  width: 100%;
+html,
+body {
+  background-color: #000; /* Darker shade for more contrast */
   height: 100%;
+  margin: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px; /* Adding padding to ensure content is centered with spacing */
 }
 
-/* Style for food */
+body {
+  background: #282828; /* Slightly lighter for contrast */
+  background: radial-gradient(circle, #333, #111);
+  font: 100%/1.5 sans-serif;
+}
+
+/* Game Container - Adding margin for spacing */
+.game-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 20px; /* Spacing around the game container */
+}
+
+/* Stage */
+.stage {
+  display: grid;
+  grid-template-columns: repeat(10, 64px); /* Increased tile size */
+  grid-template-rows: repeat(10, 64px); /* Increased tile size */
+  gap: 2px; /* Increased gap for more spacing */
+}
+
+/* Tiles */
+.tile {
+  background: rgba(0, 0, 0, 0.15);
+  width: 64px; /* Double the previous size */
+  height: 64px; /* Double the previous size */
+  position: relative;
+  transition: background-color 300ms linear, box-shadow 300ms linear;
+}
+
+.head {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.body {
+  background: rgb(108, 187, 102);
+  transition: background-color 300ms linear, opacity 300ms linear;
+}
+
 .food {
-  background-color: red;
-  width: 100%;
-  height: 100%;
+  background: rgba(255, 0, 0, 0.6);
 }
