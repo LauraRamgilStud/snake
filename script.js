@@ -1,176 +1,108 @@
-"use strict";
+import { Queue } from "/utils.js";
+("use-strict");
 
-let snake = [
-  { row: 5, col: 5 },
-  { row: 5, col: 4 },
-  { row: 5, col: 3 },
-];
+const BOARD_WIDTH = 20;
+const BOARD_HEIGHT = 16;
+const TICK_RATE = 200; // Milliseconds per tick
 
-let food = generateFood();
-let model = createInitialModel();
-let gameRunning = true;
-let gamePaused = false;
-let lastDirection = null;
-let score = 0;
+let snakeQueue;
+let apple;
+let direction = { x: 1, y: 0 };
+let gameInterval;
 
-function createInitialModel() {
-  let m = Array(10)
-    .fill(null)
-    .map(() => Array(10).fill(0));
-  snake.forEach((segment) => (m[segment.row][segment.col] = 1));
-  m[food.row][food.col] = 2;
-  return m;
-}
+const board = document.getElementById("board");
 
-function generateFood() {
-  let row, col;
-  do {
-    row = Math.floor(Math.random() * 10);
-    col = Math.floor(Math.random() * 10);
-  } while (isCellOccupied(row, col));
-  return { row, col };
-}
-
-function isCellOccupied(row, col) {
-  return snake.some((segment) => segment.row === row && segment.col === col);
-}
+window.addEventListener("load", start);
 
 function start() {
-  console.log("Javascript kører");
-  initializeGrid();
-  document.addEventListener("keydown", updateDirection);
-  displayBoard();
-  tick();
+  buildBoard();
+  initSnake();
+  generateApple();
+  gameInterval = setInterval(moveSnake, TICK_RATE);
 }
 
-function initializeGrid() {
-  const stage = document.querySelector(".stage");
-  for (let i = 0; i < 100; i++) {
-    let tile = document.createElement("div");
-    tile.className = "tile";
-    stage.appendChild(tile);
-  }
-}
-
-function tick() {
-  if (!gameRunning || gamePaused) return;
-
-  setTimeout(tick, 250);
-  if (lastDirection) {
-    moveSnake();
-    if (checkSelfCollision()) {
-      gameRunning = false;
-      alert("Game Over! Your score: " + score);
-      return;
+function buildBoard() {
+  for (let y = 0; y < BOARD_HEIGHT; y++) {
+    for (let x = 0; x < BOARD_WIDTH; x++) {
+      const cell = document.createElement("div");
+      cell.classList.add("cell");
+      cell.id = `${x}-${y}`;
+      board.appendChild(cell);
     }
-    checkFoodCollision();
-    updateModel();
-    displayBoard();
   }
 }
 
-function checkSelfCollision() {
-  const [head, ...body] = snake;
-  return body.some(
-    (segment) => segment.row === head.row && segment.col === head.col
+function initSnake() {
+  snakeQueue = new Queue();
+  snakeQueue.enqueue({ x: 10, y: 10 });
+  const snakeHead = document.getElementById(
+    `${snakeQueue.front().x}-${snakeQueue.front().y}`
   );
+  snakeHead.classList.add("snake");
 }
 
 function moveSnake() {
-  let newHead = getNewHead();
-
-  snake.unshift(newHead);
-  if (newHead.row === food.row && newHead.col === food.col) {
-    updateScore(10);
-    food = generateFood();
-  } else {
-    snake.pop();
-  }
-}
-
-function checkFoodCollision() {
-  if (snake[0].row === food.row && snake[0].col === food.col) {
-    updateScore(10);
-    let tail = snake[snake.length - 1];
-    snake.push({ row: tail.row, col: tail.col });
-    food = generateFood();
-  }
-}
-
-function getNewHead() {
-  let newHead = { ...snake[0] };
-  switch (lastDirection) {
-    case "ArrowLeft":
-      newHead.col = (newHead.col - 1 + 10) % 10;
-      break;
-    case "ArrowRight":
-      newHead.col = (newHead.col + 1) % 10;
-      break;
-    case "ArrowUp":
-      newHead.row = (newHead.row - 1 + 10) % 10;
-      break;
-    case "ArrowDown":
-      newHead.row = (newHead.row + 1) % 10;
-      break;
-  }
-  return newHead;
-}
-
-function updateModel() {
-  model.forEach((row) => row.fill(0));
-  snake.forEach((segment) => (model[segment.row][segment.col] = 1));
-  model[food.row][food.col] = 2;
-}
-
-function displayBoard() {
-  const tiles = document.querySelectorAll(".stage .tile");
-  tiles.forEach((tile) => (tile.className = "tile"));
-
-  snake.forEach((segment, index) => {
-    const position = segment.row * 10 + segment.col;
-    if (index === 0) {
-      tiles[position].classList.add("head");
-    } else {
-      tiles[position].classList.add("body");
-    }
-  });
-
-  const foodPosition = food.row * 10 + food.col;
-  tiles[foodPosition].classList.add("food");
-}
-
-function updateScore(value) {
-  score += value;
-  document.getElementById("score").textContent = score;
-}
-
-function togglePause() {
-  gamePaused = !gamePaused;
-  if (!gamePaused) tick();
-}
-
-function updateDirection(event) {
-  if (event.key === " ") {
-    togglePause();
+  const head = {
+    x: snakeQueue.front().x + direction.x,
+    y: snakeQueue.front().y + direction.y,
+  };
+  if (
+    head.x < 0 ||
+    head.x >= BOARD_WIDTH ||
+    head.y < 0 ||
+    head.y >= BOARD_HEIGHT ||
+    snakeQueue.contains(head)
+  ) {
+    clearInterval(gameInterval);
+    alert("Game over!");
     return;
   }
 
-  const validKeys = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"];
-  if (
-    validKeys.includes(event.key) &&
-    !isOppositeDirection(event.key, lastDirection)
-  ) {
-    lastDirection = event.key;
+  snakeQueue.enqueue(head);
+  const cell = document.getElementById(`${head.x}-${head.y}`);
+  cell.classList.add("snake");
+
+  if (head.x === apple.x && head.y === apple.y) {
+    generateApple();
+  } else {
+    const tail = snakeQueue.dequeue();
+    const tailCell = document.getElementById(`${tail.x}-${tail.y}`);
+    tailCell.classList.remove("snake");
   }
 }
 
-function isOppositeDirection(newDirection, lastDirection) {
-  return (
-    (newDirection === "ArrowLeft" && lastDirection === "ArrowRight") ||
-    (newDirection === "ArrowRight" && lastDirection === "ArrowLeft") ||
-    (newDirection === "ArrowUp" && lastDirection === "ArrowDown") ||
-    (newDirection === "ArrowDown" && lastDirection === "ArrowUp")
-  );
+function generateApple() {
+  let x, y;
+  do {
+    x = Math.floor(Math.random() * BOARD_WIDTH);
+    y = Math.floor(Math.random() * BOARD_HEIGHT);
+  } while (snakeQueue.contains({ x, y }));
+  apple = { x, y };
+  const appleCell = document.getElementById(`${apple.x}-${apple.y}`);
+  appleCell.classList.add("apple");
 }
 
-window.addEventListener("load", start);
+document.addEventListener("keydown", function (event) {
+  switch (event.key) {
+    case "ArrowUp":
+      if (direction.y !== 1) {
+        direction = { x: 0, y: -1 };
+      }
+      break;
+    case "ArrowDown":
+      if (direction.y !== -1) {
+        direction = { x: 0, y: 1 };
+      }
+      break;
+    case "ArrowLeft":
+      if (direction.x !== 1) {
+        direction = { x: -1, y: 0 };
+      }
+      break;
+    case "ArrowRight":
+      if (direction.x !== -1) {
+        direction = { x: 1, y: 0 };
+      }
+      break;
+  }
+});
